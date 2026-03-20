@@ -1,0 +1,68 @@
+{
+  "buyer_id_expected": "10110",
+  "bit_len": 5,
+  "base_csv": "/home/heavily/2376292/robustness_dataset/base.csv",
+  "watermarked_csv": "/home/heavily/2376292/robustness_dataset/watermarked.csv",
+  "meta_json": "/home/heavily/2376292/robustness_dataset/watermarked.csv.meta.json",
+  "variants": [
+    {
+      "name": "wm_clean",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/wm_clean.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "round_int",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/round_int.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "round_2dp",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/round_2dp.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "gaussian_noise_10pct_small",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/gaussian_noise_10pct_small.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "gaussian_noise_30pct_small",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/gaussian_noise_30pct_small.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "uniform_jitter_20pct",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/uniform_jitter_20pct.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "clip_1_99",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/clip_1_99.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "scale_shift_small",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/scale_shift_small.csv",
+      "detected_id": "10110",
+      "ok": true
+    },
+    {
+      "name": "string_format_1dp",
+      "path": "/home/heavily/2376292/robustness_dataset/variants/string_format_1dp.csv",
+      "detected_id": "10110",
+      "ok": true
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "ok": 9,
+    "fail": 0
+  }
+}

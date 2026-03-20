@@ -1,0 +1,10 @@
+name,path,detected_id,ok
+wm_clean,/home/heavily/2376292/robustness_dataset/variants/wm_clean.csv,10110,True
+round_int,/home/heavily/2376292/robustness_dataset/variants/round_int.csv,10110,True
+round_2dp,/home/heavily/2376292/robustness_dataset/variants/round_2dp.csv,10110,True
+gaussian_noise_10pct_small,/home/heavily/2376292/robustness_dataset/variants/gaussian_noise_10pct_small.csv,10110,True
+gaussian_noise_30pct_small,/home/heavily/2376292/robustness_dataset/variants/gaussian_noise_30pct_small.csv,10110,True
+uniform_jitter_20pct,/home/heavily/2376292/robustness_dataset/variants/uniform_jitter_20pct.csv,10110,True
+clip_1_99,/home/heavily/2376292/robustness_dataset/variants/clip_1_99.csv,10110,True
+scale_shift_small,/home/heavily/2376292/robustness_dataset/variants/scale_shift_small.csv,10110,True
+string_format_1dp,/home/heavily/2376292/robustness_dataset/variants/string_format_1dp.csv,10110,True

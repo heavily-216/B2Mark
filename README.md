@@ -29,6 +29,33 @@ cmd창에서 pip install -r requirements.txt 명령어를 실행하면 프로젝
 
 cmd창에서 python make_dummy.py 명령어를 실행하여 워터마킹 테스트를 수행할 csv 파일을 준비합니다.
 
+### (추가) 워터마킹 강인성(손상 내성) 데이터셋 생성
+
+워터마킹된 CSV를 여러 방식으로 “약간 손상”시킨 변형(노이즈/반올림/클리핑/스케일 변화 등)을 만들고, 각 변형에서 `detect` 결과가 원래 구매자 ID로 복원되는지 `report.json`, `report.csv`로 요약합니다.
+
+```bash
+# (WSL/Ubuntu 계열 예시) pip/venv가 없으면 먼저 설치
+sudo apt update
+sudo apt install -y python3-pip python3-venv
+
+pip3 install -r requirements.txt
+
+# 강인성 데이터셋 생성
+python3 make_robustness_dataset.py \
+  --out_dir robustness_dataset \
+  --rows 3000 \
+  --seed 42 \
+  --buyer_id 10110 \
+  --bit_len 5
+```
+
+생성 결과:
+
+- `robustness_dataset/base.csv`: 더미 원본
+- `robustness_dataset/watermarked.csv`: 워터마킹 적용본 (+ `watermarked.csv.meta.json`)
+- `robustness_dataset/variants/*.csv`: 손상(변형) 버전들
+- `robustness_dataset/report.json`, `robustness_dataset/report.csv`: 변형별 검출 성공/실패 요약
+
 ### 3. GUI 모드로 실행 (추천)
 
 cmd창에서 python gui.py 명령어를 실행하면 애플리케이션 창이 열리며, 파일 선택 및 버튼 클릭으로 모든 작업을 수행할 수 있습니다.
