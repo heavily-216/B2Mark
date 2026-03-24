@@ -23,6 +23,8 @@ class VariantResult:
     path: str
     detected_id: str
     ok: bool
+    dov_verified: bool
+    dov_match_ratio: float
 
 
 def _ensure_dir(path: str) -> None:
@@ -180,6 +182,18 @@ def main() -> None:
     parser.add_argument("--buyer_id", default="10110", help="Buyer ID bitstring")
     parser.add_argument("--bit_len", type=int, default=5, help="Buyer ID length")
     parser.add_argument(
+        "--dov_z_threshold",
+        type=float,
+        default=1.645,
+        help="Z-score threshold used in DOV bit decoding",
+    )
+    parser.add_argument(
+        "--dov_min_match_ratio",
+        type=float,
+        default=0.8,
+        help="Minimum bit-match ratio for DOV ownership verification",
+    )
+    parser.add_argument(
         "--save_detection_logs",
         action="store_true",
         help="Save per-variant detector stdout (Z-score report) to files",
@@ -242,8 +256,29 @@ def main() -> None:
             log_path = os.path.join(logs_dir, f"{name}.txt")
             with open(log_path, "w", encoding="utf-8") as f:
                 f.write(detection_log)
+
+        dov = detector.verify_ownership(
+            suspect_path=path,
+            meta_data=meta_data,
+            claimed_buyer_id=args.buyer_id,
+            bit_length=args.bit_len,
+            target_col=TARGET_COL,
+            ref_cols=REF_COLS,
+            z_threshold=args.dov_z_threshold,
+            min_match_ratio=args.dov_min_match_ratio,
+        )
+
         ok = detected == args.buyer_id
-        results.append(VariantResult(name=name, path=path, detected_id=detected, ok=ok))
+        results.append(
+            VariantResult(
+                name=name,
+                path=path,
+                detected_id=detected,
+                ok=ok,
+                dov_verified=dov["ownership_verified"],
+                dov_match_ratio=dov["match_ratio"],
+            )
+        )
 
     # 6) report
     report = {
@@ -253,13 +288,26 @@ def main() -> None:
         "watermarked_csv": wm_path,
         "meta_json": meta_path,
         "variants": [
-            {"name": r.name, "path": r.path, "detected_id": r.detected_id, "ok": r.ok}
+            {
+                "name": r.name,
+                "path": r.path,
+                "detected_id": r.detected_id,
+                "ok": r.ok,
+                "dov_verified": r.dov_verified,
+                "dov_match_ratio": r.dov_match_ratio,
+            }
             for r in results
         ],
         "summary": {
             "total": len(results),
             "ok": sum(1 for r in results if r.ok),
             "fail": sum(1 for r in results if not r.ok),
+            "dov_verified": sum(1 for r in results if r.dov_verified),
+            "dov_not_verified": sum(1 for r in results if not r.dov_verified),
+        },
+        "dov": {
+            "z_threshold": args.dov_z_threshold,
+            "min_match_ratio": args.dov_min_match_ratio,
         },
     }
     _write_json(os.path.join(out_dir, "report.json"), report)

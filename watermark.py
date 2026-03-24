@@ -80,6 +80,31 @@ class B2MarkDetector:
         features = [utils.get_feature_value(row[col]) for col in ref_cols]
         return "".join(features)
 
+    def _collect_bit_stats(self, df, bit_length, target_col, ref_cols, green_domains):
+        """비트별 Green/Total 카운트와 Z-score를 수집한다."""
+        bit_stats = {i: {"green": 0, "total": 0} for i in range(bit_length)}
+
+        for idx in df.index:
+            comp_key = self._get_composite_key(df.loc[idx], ref_cols)
+            bit_idx = utils.hash_mod(self.secret_key, str(idx), bit_length)
+
+            if utils.hash_mod(self.secret_key, comp_key, self.g) != 0:
+                continue
+
+            val = df.loc[idx, target_col]
+            bit_stats[bit_idx]["total"] += 1
+
+            if any(low <= val < high for low, high in green_domains):
+                bit_stats[bit_idx]["green"] += 1
+
+        z_scores = {}
+        for i in range(bit_length):
+            g_cnt = bit_stats[i]["green"]
+            t_cnt = bit_stats[i]["total"]
+            z_scores[i] = None if t_cnt == 0 else utils.calculate_z_score(g_cnt, t_cnt)
+
+        return bit_stats, z_scores
+
     def detect(self, suspect_path, meta_data, bit_length, target_col, ref_cols):
         # 1. 데이터 로드
         df = pd.read_csv(suspect_path)
@@ -90,25 +115,14 @@ class B2MarkDetector:
         seed = meta_data['seed']
         green_domains = utils.generate_green_domains(d_min, d_max, self.k, seed)
 
-        # 3. 비트별 통계 수집기 초기화
-        # bit_stats[0] = {'green': 10, 'total': 20} -> 0번 비트 위치의 통계
-        bit_stats = {i: {'green': 0, 'total': 0} for i in range(bit_length)}
-
-        # 4. 데이터 스캔 (Detection Loop)
-        for idx in df.index:
-            comp_key = self._get_composite_key(df.loc[idx], ref_cols)
-            bit_idx = utils.hash_mod(self.secret_key, str(idx), bit_length)
-            
-            # 선별 로직 (Embedder와 동일해야 함)
-            if utils.hash_mod(self.secret_key, comp_key, self.g) != 0:
-                continue
-
-            # 통계 수집
-            val = df.loc[idx, target_col]
-            bit_stats[bit_idx]['total'] += 1
-            
-            if any(low <= val < high for low, high in green_domains):
-                bit_stats[bit_idx]['green'] += 1
+        # 3. 비트별 통계 수집
+        bit_stats, z_scores = self._collect_bit_stats(
+            df=df,
+            bit_length=bit_length,
+            target_col=target_col,
+            ref_cols=ref_cols,
+            green_domains=green_domains,
+        )
 
         # 5. Z-Score 계산 및 비트 복원
         detected_id = ""
@@ -122,8 +136,7 @@ class B2MarkDetector:
                 detected_id += "?" # 데이터 부족
                 continue
                 
-            # Z-Score 계산 (utils 사용)
-            z_score = utils.calculate_z_score(g_cnt, t_cnt)
+            z_score = z_scores[i]
             print(f"Bit {i}: Green={g_cnt}/{t_cnt}, Z-Score={z_score:.2f}")
 
             # 판정 (임계값 1.645는 95% 신뢰구간)
@@ -133,3 +146,70 @@ class B2MarkDetector:
                 detected_id += "0"
 
         return detected_id
+
+    def verify_ownership(
+        self,
+        suspect_path,
+        meta_data,
+        claimed_buyer_id,
+        bit_length,
+        target_col,
+        ref_cols,
+        z_threshold=1.645,
+        min_match_ratio=0.8,
+    ):
+        """
+        Data Ownership Verification(DOV):
+        유출 파일이 특정 구매자(claimed_buyer_id)에게 판매된 파일인지 검증한다.
+        """
+        if len(claimed_buyer_id) != bit_length:
+            raise ValueError("claimed_buyer_id 길이와 bit_length가 일치해야 합니다.")
+        if any(ch not in ("0", "1") for ch in claimed_buyer_id):
+            raise ValueError("claimed_buyer_id는 0/1 비트열이어야 합니다.")
+
+        df = pd.read_csv(suspect_path)
+
+        d_min = meta_data["min"]
+        d_max = meta_data["max"]
+        seed = meta_data["seed"]
+        green_domains = utils.generate_green_domains(d_min, d_max, self.k, seed)
+
+        bit_stats, z_scores = self._collect_bit_stats(
+            df=df,
+            bit_length=bit_length,
+            target_col=target_col,
+            ref_cols=ref_cols,
+            green_domains=green_domains,
+        )
+
+        detected_id = ""
+        known_bits = 0
+        matched_bits = 0
+
+        for i in range(bit_length):
+            z = z_scores[i]
+            if z is None:
+                detected_id += "?"
+                continue
+            known_bits += 1
+            bit = "1" if z > z_threshold else "0"
+            detected_id += bit
+            if bit == claimed_buyer_id[i]:
+                matched_bits += 1
+
+        match_ratio = 0.0 if known_bits == 0 else matched_bits / known_bits
+        ownership_verified = known_bits > 0 and match_ratio >= min_match_ratio
+
+        return {
+            "claimed_buyer_id": claimed_buyer_id,
+            "detected_id": detected_id,
+            "bit_length": bit_length,
+            "known_bits": known_bits,
+            "matched_bits": matched_bits,
+            "match_ratio": match_ratio,
+            "z_threshold": z_threshold,
+            "min_match_ratio": min_match_ratio,
+            "ownership_verified": ownership_verified,
+            "bit_stats": bit_stats,
+            "z_scores": z_scores,
+        }

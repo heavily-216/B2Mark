@@ -3,7 +3,6 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import json
 import os
-import threading
 from watermark import B2MarkEmbedder, B2MarkDetector
 
 # --- 설정값 (고정) ---
@@ -15,20 +14,23 @@ class B2MarkApp:
     def __init__(self, root):
         self.root = root
         self.root.title("B²Mark Watermarking System")
-        self.root.geometry("500x450")
+        self.root.geometry("560x540")
 
-        # 탭(Tab) 만들기 (삽입 / 검출)
+        # 탭(Tab) 만들기 (삽입 / 검출 / DOV)
         tab_control = ttk.Notebook(root)
         self.tab_embed = ttk.Frame(tab_control)
         self.tab_detect = ttk.Frame(tab_control)
+        self.tab_dov = ttk.Frame(tab_control)
         
         tab_control.add(self.tab_embed, text='Watermark Embedding (판매용)')
         tab_control.add(self.tab_detect, text='Watermark Detection (추적용)')
+        tab_control.add(self.tab_dov, text='Data Ownership Verification (DOV)')
         tab_control.pack(expand=1, fill="both")
 
         # UI 구성요소 배치
         self.create_embed_tab()
         self.create_detect_tab()
+        self.create_dov_tab()
 
         # 로그 창 (하단)
         self.log_area = tk.Text(root, height=8, state='disabled', bg="#f0f0f0")
@@ -43,6 +45,12 @@ class B2MarkApp:
 
     def select_file(self, entry_widget):
         filename = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
+        if filename:
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, filename)
+
+    def select_json_file(self, entry_widget):
+        filename = filedialog.askopenfilename(filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
         if filename:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, filename)
@@ -86,7 +94,7 @@ class B2MarkApp:
         ttk.Label(frame, text="메타데이터 (JSON):").grid(row=1, column=0, sticky="w", pady=5)
         self.ent_meta_input = ttk.Entry(frame, width=30)
         self.ent_meta_input.grid(row=1, column=1, padx=5)
-        ttk.Button(frame, text="찾기", command=lambda: self.select_file(self.ent_meta_input)).grid(row=1, column=2)
+        ttk.Button(frame, text="찾기", command=lambda: self.select_json_file(self.ent_meta_input)).grid(row=1, column=2)
 
         # 3. 비트 길이
         ttk.Label(frame, text="ID 길이:").grid(row=2, column=0, sticky="w", pady=5)
@@ -96,6 +104,51 @@ class B2MarkApp:
 
         # 4. 실행 버튼
         ttk.Button(frame, text="🔍 범인 색출 시작", command=self.run_detect).grid(row=3, column=0, columnspan=3, pady=20, sticky="ew")
+
+    def create_dov_tab(self):
+        frame = ttk.LabelFrame(self.tab_dov, text=" 데이터 소유권 검증(DOV) 설정 ")
+        frame.pack(padx=10, pady=10, fill="both", expand=True)
+
+        # 1. 의심 파일 선택
+        ttk.Label(frame, text="유출된 CSV 파일:").grid(row=0, column=0, sticky="w", pady=5)
+        self.ent_dov_input = ttk.Entry(frame, width=35)
+        self.ent_dov_input.grid(row=0, column=1, padx=5)
+        ttk.Button(frame, text="찾기", command=lambda: self.select_file(self.ent_dov_input)).grid(row=0, column=2)
+
+        # 2. 메타데이터 파일 선택
+        ttk.Label(frame, text="메타데이터 (JSON):").grid(row=1, column=0, sticky="w", pady=5)
+        self.ent_dov_meta = ttk.Entry(frame, width=35)
+        self.ent_dov_meta.grid(row=1, column=1, padx=5)
+        ttk.Button(frame, text="찾기", command=lambda: self.select_json_file(self.ent_dov_meta)).grid(row=1, column=2)
+
+        # 3. 주장 구매자 ID
+        ttk.Label(frame, text="주장 구매자 ID:").grid(row=2, column=0, sticky="w", pady=5)
+        self.ent_dov_claimed_id = ttk.Entry(frame, width=35)
+        self.ent_dov_claimed_id.insert(0, "10110")
+        self.ent_dov_claimed_id.grid(row=2, column=1, padx=5)
+
+        # 4. 비트 길이
+        ttk.Label(frame, text="ID 길이:").grid(row=3, column=0, sticky="w", pady=5)
+        self.ent_dov_bit_len = ttk.Entry(frame, width=35)
+        self.ent_dov_bit_len.insert(0, "5")
+        self.ent_dov_bit_len.grid(row=3, column=1, padx=5)
+
+        # 5. Z-threshold
+        ttk.Label(frame, text="Z 임계값 (bit=1):").grid(row=4, column=0, sticky="w", pady=5)
+        self.ent_dov_z = ttk.Entry(frame, width=35)
+        self.ent_dov_z.insert(0, "1.645")
+        self.ent_dov_z.grid(row=4, column=1, padx=5)
+
+        # 6. 최소 일치율
+        ttk.Label(frame, text="최소 일치율 (0~1):").grid(row=5, column=0, sticky="w", pady=5)
+        self.ent_dov_ratio = ttk.Entry(frame, width=35)
+        self.ent_dov_ratio.insert(0, "0.8")
+        self.ent_dov_ratio.grid(row=5, column=1, padx=5)
+
+        # 7. 실행 버튼
+        ttk.Button(frame, text="✅ DOV 검증 시작", command=self.run_dov).grid(
+            row=6, column=0, columnspan=3, pady=20, sticky="ew"
+        )
 
     def run_embed(self):
         input_path = self.ent_embed_input.get()
@@ -146,6 +199,54 @@ class B2MarkApp:
             self.log(f"\n[!!!] 검출 결과: 범인의 ID는 [{detected_id}] 입니다.")
             messagebox.showinfo("검출 완료", f"검출된 ID: {detected_id}")
 
+        except Exception as e:
+            self.log(f"[-] 오류 발생: {str(e)}")
+            messagebox.showerror("오류", str(e))
+
+    def run_dov(self):
+        input_path = self.ent_dov_input.get()
+        meta_path = self.ent_dov_meta.get()
+        claimed_id = self.ent_dov_claimed_id.get()
+        bit_len = self.ent_dov_bit_len.get()
+        z_threshold = self.ent_dov_z.get()
+        min_ratio = self.ent_dov_ratio.get()
+
+        if not input_path or not meta_path or not claimed_id:
+            messagebox.showerror("오류", "파일과 주장 ID를 모두 입력해주세요.")
+            return
+
+        self.log(f"[*] DOV 시작... (File: {os.path.basename(input_path)}, Claimed: {claimed_id})")
+
+        try:
+            with open(meta_path, "r") as f:
+                meta_data = json.load(f)
+
+            detector = B2MarkDetector(secret_key=SECRET_KEY)
+            result = detector.verify_ownership(
+                suspect_path=input_path,
+                meta_data=meta_data,
+                claimed_buyer_id=claimed_id,
+                bit_length=int(bit_len),
+                target_col=TARGET_COL,
+                ref_cols=REF_COLS,
+                z_threshold=float(z_threshold),
+                min_match_ratio=float(min_ratio),
+            )
+
+            decision_text = "소유권 검증 성공" if result["ownership_verified"] else "소유권 불충분"
+            self.log("--- [DOV Report] ---")
+            self.log(f"Claimed ID : {result['claimed_buyer_id']}")
+            self.log(f"Detected ID: {result['detected_id']}")
+            self.log(f"Matched    : {result['matched_bits']}/{result['known_bits']}")
+            self.log(f"Match Ratio: {result['match_ratio']:.2%}")
+            self.log(f"Decision   : {decision_text}\n")
+
+            messagebox.showinfo(
+                "DOV 결과",
+                f"{decision_text}\n"
+                f"Detected ID: {result['detected_id']}\n"
+                f"Match Ratio: {result['match_ratio']:.2%}",
+            )
         except Exception as e:
             self.log(f"[-] 오류 발생: {str(e)}")
             messagebox.showerror("오류", str(e))
