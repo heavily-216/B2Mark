@@ -1,14 +1,17 @@
+# -*- coding: utf-8 -*-
 # gui.py
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import json
 import os
-from watermark import B2MarkEmbedder, B2MarkDetector
+import tempfile
+from pathlib import Path
+from watermark import insert, detect, WatermarkOptions
 
 # --- 설정값 (고정) ---
 SECRET_KEY = "grad_project_key"
 TARGET_COL = "price"
-REF_COLS = ["area", "floor"]
+REF_COLS = ("area", "floor")
 
 class B2MarkApp:
     def __init__(self, root):
@@ -162,8 +165,17 @@ class B2MarkApp:
         self.log(f"[*] 워터마킹 시작... (Buyer: {buyer_id})")
         
         try:
-            embedder = B2MarkEmbedder(secret_key=SECRET_KEY)
-            meta_data = embedder.embed(input_path, output_path, buyer_id, TARGET_COL, REF_COLS)
+            options = WatermarkOptions(
+                secret_key=SECRET_KEY,
+                buyer_bitstring=buyer_id,
+                target_col=TARGET_COL,
+                ref_cols=REF_COLS,
+                k=20,
+                g=5,
+            )
+            
+            embed_result = insert(input_path, output_path, options)
+            meta_data = embed_result.metadata
             
             # 메타데이터 저장
             meta_path = output_path + ".meta.json"
@@ -193,11 +205,22 @@ class B2MarkApp:
             with open(meta_path, "r") as f:
                 meta_data = json.load(f)
             
-            detector = B2MarkDetector(secret_key=SECRET_KEY)
-            detected_id = detector.detect(input_path, meta_data, int(bit_len), TARGET_COL, REF_COLS)
+            options = WatermarkOptions(
+                secret_key=SECRET_KEY,
+                buyer_bitstring="1" * int(bit_len),
+                target_col=TARGET_COL,
+                ref_cols=REF_COLS,
+                k=20,
+                g=5,
+            )
+            
+            detection_result = detect(input_path, options, embed_metadata=meta_data)
+            detected_id = detection_result.detected_bitstring
+            score = detection_result.score
             
             self.log(f"\n[!!!] 검출 결과: 범인의 ID는 [{detected_id}] 입니다.")
-            messagebox.showinfo("검출 완료", f"검출된 ID: {detected_id}")
+            self.log(f"[!!!] 신뢰도 점수: {score:.4f}")
+            messagebox.showinfo("검출 완료", f"검출된 ID: {detected_id}\n신뢰도: {score:.4f}")
 
         except Exception as e:
             self.log(f"[-] 오류 발생: {str(e)}")
@@ -221,31 +244,40 @@ class B2MarkApp:
             with open(meta_path, "r") as f:
                 meta_data = json.load(f)
 
-            detector = B2MarkDetector(secret_key=SECRET_KEY)
-            result = detector.verify_ownership(
-                suspect_path=input_path,
-                meta_data=meta_data,
-                claimed_buyer_id=claimed_id,
-                bit_length=int(bit_len),
+            options = WatermarkOptions(
+                secret_key=SECRET_KEY,
+                buyer_bitstring=claimed_id,
                 target_col=TARGET_COL,
                 ref_cols=REF_COLS,
-                z_threshold=float(z_threshold),
-                min_match_ratio=float(min_ratio),
+                k=20,
+                g=5,
             )
-
-            decision_text = "소유권 검증 성공" if result["ownership_verified"] else "소유권 불충분"
+            
+            detection_result = detect(input_path, options, embed_metadata=meta_data)
+            detected_id = detection_result.detected_bitstring
+            score = detection_result.score
+            
+            # DOV 검증: 검출된 ID와 주장 ID 비교
+            matched_bits = sum(1 for i in range(len(claimed_id)) if claimed_id[i] == detected_id[i] if detected_id[i] != "?")
+            known_bits = sum(1 for bit in detected_id if bit != "?")
+            match_ratio = matched_bits / known_bits if known_bits > 0 else 0.0
+            
+            ownership_verified = match_ratio >= float(min_ratio)
+            decision_text = "소유권 검증 성공" if ownership_verified else "소유권 불충분"
+            
             self.log("--- [DOV Report] ---")
-            self.log(f"Claimed ID : {result['claimed_buyer_id']}")
-            self.log(f"Detected ID: {result['detected_id']}")
-            self.log(f"Matched    : {result['matched_bits']}/{result['known_bits']}")
-            self.log(f"Match Ratio: {result['match_ratio']:.2%}")
+            self.log(f"Claimed ID : {claimed_id}")
+            self.log(f"Detected ID: {detected_id}")
+            self.log(f"Matched    : {matched_bits}/{known_bits}")
+            self.log(f"Match Ratio: {match_ratio:.2%}")
+            self.log(f"Score      : {score:.4f}")
             self.log(f"Decision   : {decision_text}\n")
 
             messagebox.showinfo(
                 "DOV 결과",
                 f"{decision_text}\n"
-                f"Detected ID: {result['detected_id']}\n"
-                f"Match Ratio: {result['match_ratio']:.2%}",
+                f"Detected ID: {detected_id}\n"
+                f"Match Ratio: {match_ratio:.2%}",
             )
         except Exception as e:
             self.log(f"[-] 오류 발생: {str(e)}")
