@@ -286,8 +286,8 @@ class WatermarkOptions:
     buyer_bitstring: str | None = None
     target_col: str | None = None
     ref_cols: tuple[str, ...] | None = None
-    k: int = 10
-    g: int = 3
+    k: int = 16
+    g: int = 6
     embed_seed: int = 10000
 
 # 워터마킹 삽입 후 메타데이터 결과를 임시로 저장하는 클래스
