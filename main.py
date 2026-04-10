@@ -11,8 +11,6 @@ def run_embed(args):
     """삽입 모드 실행"""
     # config에서 설정 로드
     config = load_config_by_datatype(args.data_type)
-    TARGET_COL = config["target_col"]
-    REF_COLS = config["ref_cols"]
     K = config["k"]
     G = config["g"]
     EMBED_SEED = config["embed_seed"]
@@ -24,17 +22,18 @@ def run_embed(args):
 
     embedder = B2MarkEmbedder(secret_key=SECRET_KEY)
 
-    # 워터마킹 수행 - 별도의 WatermarkOptions 전달 방식으로 수정 필요
+    # 워터마킹 수행 - 자동 열 탐지 사용
     meta_data = embedder.embed(
         source_path=args.input,
         output_path=args.output,
         buyer_bitstring=args.buyer_id,
-        target_col=TARGET_COL,
-        ref_cols=REF_COLS,
+        target_col=None,  # 자동 탐지 사용
+        ref_cols=None,  # 자동 탐지 사용
         k=K,
         g=G,
         embed_seed=EMBED_SEED,
         verbose=args.verbose if hasattr(args, "verbose") else False,
+        data_type=args.data_type,  # 자동 탐지에 필요
     )
 
     # 메타데이터 저장 (중요: 이게 있어야 검출 가능)
@@ -50,8 +49,6 @@ def run_detect(args):
     """검출 모드 실행"""
     # config에서 설정 로드
     config = load_config_by_datatype(args.data_type)
-    TARGET_COL = config["target_col"]
-    REF_COLS = config["ref_cols"]
 
     print(
         f"[*] 워터마크를 검출합니다... 대상 파일: {args.input}, 데이터타입: {args.data_type}"
@@ -69,14 +66,15 @@ def run_detect(args):
 
     detector = B2MarkDetector(secret_key=SECRET_KEY)
 
-    # 검출 수행
+    # 검출 수행 - 자동 열 탐지 사용
     detected_id = detector.detect(
         suspect_path=args.input,
         meta_data=meta_data,
         bit_length=args.bit_len,
-        target_col=TARGET_COL,
-        ref_cols=REF_COLS,
+        target_col=None,  # 자동 탐지 사용
+        ref_cols=None,  # 자동 탐지 사용
         verbose=args.verbose if hasattr(args, "verbose") else False,
+        data_type=args.data_type,  # 자동 탐지에 필요
     )
 
     print(f"\n[!!!] 구매자 ID: [{detected_id}]")
@@ -86,8 +84,6 @@ def run_dov(args):
     """Data Ownership Verification 모드 실행"""
     # config에서 설정 로드
     config = load_config_by_datatype(args.data_type)
-    TARGET_COL = config["target_col"]
-    REF_COLS = config["ref_cols"]
 
     print(
         f"[*] DOV(소유권 검증)를 수행합니다... 대상 파일: {args.input}, 데이터타입: {args.data_type}"
@@ -106,10 +102,11 @@ def run_dov(args):
         meta_data=meta_data,
         claimed_buyer_id=args.claimed_id,
         bit_length=args.bit_len,
-        target_col=TARGET_COL,
-        ref_cols=REF_COLS,
+        target_col=None,  # 자동 탐지 사용
+        ref_cols=None,  # 자동 탐지 사용
         z_threshold=args.z_threshold,
         min_match_ratio=args.min_match_ratio,
+        data_type=args.data_type,  # 자동 탐지에 필요
     )
 
     print("\n--- [DOV Report] ---")

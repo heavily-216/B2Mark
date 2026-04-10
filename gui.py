@@ -141,28 +141,26 @@ class B2MarkGUI:
 
             # config 로드
             config = load_config_by_datatype(data_type)
-            target_col = config["target_col"]
-            ref_cols = config["ref_cols"]
             k = config["k"]
             g = config["g"]
             embed_seed = config["embed_seed"]
 
             self.log(f"    설정: k={k}, g={g}, embed_seed={embed_seed}")
-            self.log(f"    Target Column: {target_col}")
-            self.log(f"    Reference Columns: {', '.join(ref_cols)}")
+            self.log(f"    열 이름 자동 탐지 중...")
 
-            # 워터마킹 실행
+            # 워터마킹 실행 (자동 열 탐지)
             embedder = B2MarkEmbedder(secret_key=SECRET_KEY)
             meta_data = embedder.embed(
                 source_path=input_file,
                 output_path=output_file,
                 buyer_bitstring=buyer_id,
-                target_col=target_col,
-                ref_cols=ref_cols,
+                target_col=None,  # 자동 탐지
+                ref_cols=None,  # 자동 탐지
                 k=k,
                 g=g,
                 embed_seed=embed_seed,
                 verbose=verbose,
+                data_type=data_type,  # 자동 탐지에 필요
             )
 
             # 메타데이터 저장
@@ -288,22 +286,23 @@ class B2MarkGUI:
 
             # config 로드
             config = load_config_by_datatype(data_type)
-            target_col = config["target_col"]
-            ref_cols = config["ref_cols"]
+
+            self.log(f"    열 이름 자동 탐지 중...")
 
             # 메타데이터 로드
             with open(meta_file, "r") as f:
                 meta_data = json.load(f)
 
-            # 검출 실행
+            # 검출 실행 (자동 열 탐지)
             detector = B2MarkDetector(secret_key=SECRET_KEY)
             detected_id = detector.detect(
                 suspect_path=input_file,
                 meta_data=meta_data,
                 bit_length=bit_len,
-                target_col=target_col,
-                ref_cols=ref_cols,
+                target_col=None,  # 자동 탐지
+                ref_cols=None,  # 자동 탐지
                 verbose=verbose,
+                data_type=data_type,  # 자동 탐지에 필요
             )
 
             self.log(f"[+] 검출 완료!")
@@ -434,24 +433,25 @@ class B2MarkGUI:
 
             # config 로드
             config = load_config_by_datatype(data_type)
-            target_col = config["target_col"]
-            ref_cols = config["ref_cols"]
+
+            self.log(f"    열 이름 자동 탐지 중...")
 
             # 메타데이터 로드
             with open(meta_file, "r") as f:
                 meta_data = json.load(f)
 
-            # DOV 검증 실행
+            # DOV 검증 실행 (자동 열 탐지)
             detector = B2MarkDetector(secret_key=SECRET_KEY)
             result = detector.verify_ownership(
                 suspect_path=input_file,
                 meta_data=meta_data,
                 claimed_buyer_id=claimed_id,
                 bit_length=bit_len,
-                target_col=target_col,
-                ref_cols=ref_cols,
+                target_col=None,  # 자동 탐지
+                ref_cols=None,  # 자동 탐지
                 z_threshold=1.645,
                 min_match_ratio=min_match,
+                data_type=data_type,  # 자동 탐지에 필요
             )
 
             # 결과 출력

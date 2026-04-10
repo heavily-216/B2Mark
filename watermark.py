@@ -377,6 +377,58 @@ def load_config_by_datatype(data_type: str = "real_estate") -> dict:
         raise FileNotFoundError("config.json 파일을 찾을 수 없습니다.")
 
 
+def auto_detect_columns(
+    df: pd.DataFrame, data_type: str = "real_estate"
+) -> tuple[str, list[str]]:
+    """
+    CSV 파일의 실제 열 이름을 자동으로 탐지하여 target_col과 ref_cols을 찾음
+
+    Args:
+        df: Pandas DataFrame
+        data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+
+    Returns:
+        (target_col, ref_cols) 튜플
+
+    Raises:
+        ValueError: 필요한 열을 찾을 수 없는 경우
+    """
+    config = load_config_by_datatype(data_type)
+    df_columns = set(df.columns)
+
+    # target_col 찾기
+    target_col_candidates = config.get("target_col_candidates", [])
+    target_col = None
+    for candidate in target_col_candidates:
+        if candidate in df_columns:
+            target_col = candidate
+            break
+
+    if target_col is None:
+        raise ValueError(
+            f"타겟 열을 찾을 수 없습니다.\n"
+            f"예상 가능한 열 이름: {', '.join(target_col_candidates)}\n"
+            f"현재 CSV의 열: {', '.join(df.columns)}"
+        )
+
+    # ref_cols 찾기
+    ref_cols_candidates = config.get("ref_cols_candidates", [])
+    ref_cols = None
+    for candidate_set in ref_cols_candidates:
+        if all(col in df_columns for col in candidate_set):
+            ref_cols = candidate_set
+            break
+
+    if ref_cols is None:
+        raise ValueError(
+            f"참조 열들을 찾을 수 없습니다.\n"
+            f"예상 가능한 열 조합들: {ref_cols_candidates}\n"
+            f"현재 CSV의 열: {', '.join(df.columns)}"
+        )
+
+    return target_col, ref_cols
+
+
 # =================================================================================
 # 래퍼 클래스 - main.py와의 호환성
 # =================================================================================
@@ -393,14 +445,39 @@ class B2MarkEmbedder:
         source_path,
         output_path,
         buyer_bitstring,
-        target_col,
-        ref_cols,
+        target_col=None,
+        ref_cols=None,
         k=16,
         g=6,
         embed_seed=10000,
         verbose=False,
+        data_type=None,
     ):
-        """워터마크 삽입 메서드"""
+        """
+        워터마크 삽입 메서드
+
+        Args:
+            source_path: 입력 CSV 파일 경로
+            output_path: 출력 CSV 파일 경로
+            buyer_bitstring: 워터마크 비트스트링
+            target_col: 대상 열 (None이면 auto_detect 사용)
+            ref_cols: 참조 열 리스트 (None이면 auto_detect 사용)
+            k, g, embed_seed: 워터마킹 파라미터
+            verbose: 상세 출력 여부
+            data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+                      target_col/ref_cols가 None일 때 자동 탐지에 사용
+        """
+        # 열 이름을 자동으로 탐지하는 경우
+        if target_col is None or ref_cols is None:
+            if data_type is None:
+                raise ValueError(
+                    "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
+                )
+            df = pd.read_csv(source_path)
+            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            target_col = target_col or detected_target_col
+            ref_cols = ref_cols or detected_ref_cols
+
         options = WatermarkOptions(
             secret_key=self.secret_key,
             buyer_bitstring=buyer_bitstring,
@@ -421,9 +498,38 @@ class B2MarkDetector:
         self.secret_key = secret_key
 
     def detect(
-        self, suspect_path, meta_data, bit_length, target_col, ref_cols, verbose=False
+        self,
+        suspect_path,
+        meta_data,
+        bit_length,
+        target_col=None,
+        ref_cols=None,
+        verbose=False,
+        data_type=None,
     ):
-        """워터마크 검출 메서드"""
+        """
+        워터마크 검출 메서드
+
+        Args:
+            suspect_path: 의심 파일 경로
+            meta_data: 삽입 메타데이터
+            bit_length: 비트스트링 길이
+            target_col: 대상 열 (None이면 auto_detect 사용)
+            ref_cols: 참조 열 리스트 (None이면 auto_detect 사용)
+            verbose: 상세 출력 여부
+            data_type: 데이터 타입 (자동 탐지 시 필요)
+        """
+        # 열 이름을 자동으로 탐지하는 경우
+        if target_col is None or ref_cols is None:
+            if data_type is None:
+                raise ValueError(
+                    "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
+                )
+            df = pd.read_csv(suspect_path)
+            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            target_col = target_col or detected_target_col
+            ref_cols = ref_cols or detected_ref_cols
+
         options = WatermarkOptions(
             secret_key=self.secret_key,
             buyer_bitstring="0" * bit_length,
@@ -441,12 +547,37 @@ class B2MarkDetector:
         meta_data,
         claimed_buyer_id,
         bit_length,
-        target_col,
-        ref_cols,
-        z_threshold,
-        min_match_ratio,
+        target_col=None,
+        ref_cols=None,
+        z_threshold=1.96,
+        min_match_ratio=0.5,
+        data_type=None,
     ):
-        """데이터 소유권 검증 메서드"""
+        """
+        데이터 소유권 검증 메서드
+
+        Args:
+            suspect_path: 의심 파일 경로
+            meta_data: 삽입 메타데이터
+            claimed_buyer_id: 주장하는 구매자 ID
+            bit_length: 비트스트링 길이
+            target_col: 대상 열 (None이면 auto_detect 사용)
+            ref_cols: 참조 열 리스트 (None이면 auto_detect 사용)
+            z_threshold: Z-score 임계값
+            min_match_ratio: 최소 매칭 비율
+            data_type: 데이터 타입 (자동 탐지 시 필요)
+        """
+        # 열 이름을 자동으로 탐지하는 경우
+        if target_col is None or ref_cols is None:
+            if data_type is None:
+                raise ValueError(
+                    "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
+                )
+            df = pd.read_csv(suspect_path)
+            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            target_col = target_col or detected_target_col
+            ref_cols = ref_cols or detected_ref_cols
+
         options = WatermarkOptions(
             secret_key=self.secret_key,
             buyer_bitstring="0" * bit_length,

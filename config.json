@@ -1,10 +1,20 @@
 {
   "real_estate": {
-    "description": "\ubd80\ub3d9\uc0b0 \ub370\uc774\ud130",
-    "target_col": "\ubcf8\uac74 \ub2e8\uc704\uba74\uc801\ub2f9 \uc2e4\uac70\ub798\uac00",
-    "ref_cols": [
-      "\ub300\uc9c0\uba74\uc801",
-      "\uc9c0\uc0c1 \uce35\uc218"
+    "description": "부동산 데이터",
+    "target_col_candidates": [
+      "본건 단위면적당 실거래가",
+      "price",
+      "property_price",
+      "transaction_price",
+      "거래가",
+      "단위면적당거래가"
+    ],
+    "ref_cols_candidates": [
+      ["대지면적", "지상 층수"],
+      ["land_area", "floor"],
+      ["area", "stories"],
+      ["property_area", "building_floors"],
+      ["면적", "층수"]
     ],
     "k": 32,
     "g": 2,
@@ -13,6 +23,58 @@
     "selection_params": {
       "g_value": 2
     }
+  },
+  "insurance": {
+    "description": "보험 데이터",
+    "target_col_candidates": [
+      "premium",
+      "amount",
+      "insurance_premium",
+      "monthly_premium",
+      "보험료",
+      "프리미엄"
+    ],
+    "ref_cols_candidates": [
+      ["age", "policy_type"],
+      ["나이", "정책유형"],
+      ["customer_age", "plan_type"],
+      ["year_old", "product_type"],
+      ["age_group", "insurance_type"]
+    ],
+    "k": 24,
+    "g": 3,
+    "embed_seed": 20000,
+    "selection_strategy": "hash_mod",
+    "selection_params": {
+      "g_value": 3
+    }
+  },
+  "credit_card": {
+    "description": "카드 데이터",
+    "target_col_candidates": [
+      "transaction_amount",
+      "amount",
+      "transaction_value",
+      "purchase_amount",
+      "거래금액",
+      "결제금액"
+    ],
+    "ref_cols_candidates": [
+      ["card_id", "merchant_category"],
+      ["카드번호", "가맹점분류"],
+      ["card_number", "mcc"],
+      ["account_id", "category"],
+      ["card_no", "store_type"]
+    ],
+    "k": 20,
+    "g": 4,
+    "embed_seed": 30000,
+    "selection_strategy": "hash_mod",
+    "selection_params": {
+      "g_value": 4
+    }
+  }
+}
   },
   "insurance": {
     "description": "\ubcf4\ud5d8 \ub370\uc774\ud130",
