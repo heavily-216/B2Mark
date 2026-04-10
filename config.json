@@ -1,0 +1,47 @@
+{
+  "real_estate": {
+    "description": "\ubd80\ub3d9\uc0b0 \ub370\uc774\ud130",
+    "target_col": "\ubcf8\uac74 \ub2e8\uc704\uba74\uc801\ub2f9 \uc2e4\uac70\ub798\uac00",
+    "ref_cols": [
+      "\ub300\uc9c0\uba74\uc801",
+      "\uc9c0\uc0c1 \uce35\uc218"
+    ],
+    "k": 32,
+    "g": 2,
+    "embed_seed": 1,
+    "selection_strategy": "hash_mod",
+    "selection_params": {
+      "g_value": 2
+    }
+  },
+  "insurance": {
+    "description": "\ubcf4\ud5d8 \ub370\uc774\ud130",
+    "target_col": "premium",
+    "ref_cols": [
+      "age",
+      "policy_type"
+    ],
+    "k": 24,
+    "g": 3,
+    "embed_seed": 20000,
+    "selection_strategy": "hash_mod",
+    "selection_params": {
+      "g_value": 3
+    }
+  },
+  "credit_card": {
+    "description": "\uce74\ub4dc \ub370\uc774\ud130",
+    "target_col": "transaction_amount",
+    "ref_cols": [
+      "card_id",
+      "merchant_category"
+    ],
+    "k": 20,
+    "g": 4,
+    "embed_seed": 30000,
+    "selection_strategy": "hash_mod",
+    "selection_params": {
+      "g_value": 4
+    }
+  }
+}
