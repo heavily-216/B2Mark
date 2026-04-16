@@ -177,6 +177,12 @@ def insert(
         if c not in df.columns:
             raise ValueError(f"ref_cols 에 지정한 '{c}' 열이 없습니다.")
 
+    # target_col의 원본 데이터 타입 저장 (나중에 복원하기 위해)
+    original_target_dtype = df[target_col].dtype
+
+    # 워터마킹 작업을 위해 target_col을 float로 변환
+    df[target_col] = df[target_col].astype(float)
+
     # 워터마킹을 적용할 열에서 최솟값과 최댓값 조사
     d_min = float(df[target_col].min())
     d_max = float(df[target_col].max())
@@ -233,6 +239,11 @@ def insert(
         print(f"[Embed] Bits embedded count: {embed_count}")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    # 원본 데이터 타입으로 복원
+    if original_target_dtype in ["int64", "int32", "int16", "int8"]:
+        df[target_col] = df[target_col].round().astype(original_target_dtype)
+
     df.to_csv(output_path, index=False)
     return EmbedResult(metadata={"min": d_min, "max": d_max, "seed": seed})
 
