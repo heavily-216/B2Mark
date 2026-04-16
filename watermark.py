@@ -481,7 +481,7 @@ class B2MarkEmbedder:
                 raise ValueError(
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
-            df = _read_csv_with_encoding(source_path)
+            df = _read_csv_with_encoding(suspect_path)
             detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
@@ -581,7 +581,7 @@ class B2MarkDetector:
                 raise ValueError(
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
-            df = pd.read_csv(suspect_path)
+            df = _read_csv_with_encoding(suspect_path)
             detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
