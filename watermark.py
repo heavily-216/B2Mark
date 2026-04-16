@@ -145,6 +145,20 @@ def generate_green_domains(
 # =================================================================================
 
 
+def _read_csv_with_encoding(file_path: str | Path) -> pd.DataFrame:
+    """다양한 인코딩을 시도하여 CSV 파일 읽기"""
+    encodings = ["utf-8", "cp949", "euc-kr", "latin-1", "iso-8859-1"]
+
+    for encoding in encodings:
+        try:
+            return pd.read_csv(file_path, encoding=encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+
+    # 모든 인코딩이 실패한 경우, 에러 무시하고 읽기 시도
+    return pd.read_csv(file_path, encoding="utf-8", errors="ignore")
+
+
 def insert(
     input_path: str | Path,
     output_path: str | Path,
@@ -154,10 +168,7 @@ def insert(
 
     # CSV 파일 불러오기
     buyer_bitstring, target_col, ref_cols = _validate_options(options)
-    try:
-        df = pd.read_csv(input_path, encoding="utf-8")
-    except UnicodeDecodeError:
-        df = pd.read_csv(input_path, encoding="cp949")
+    df = _read_csv_with_encoding(input_path)
 
     # 불러온 CSV 파일에 워터마킹을 적용할 대상 열이 존재하지 않는 경우 오류 처리
     if target_col not in df.columns:
@@ -260,10 +271,7 @@ def detect(
     bit_length = len(buyer_bitstring)
 
     # 메타데이터 파일에서 최솟값, 최댓값, 시드 불러오기
-    try:
-        df = pd.read_csv(input_path, encoding="utf-8")
-    except UnicodeDecodeError:
-        df = pd.read_csv(input_path, encoding="cp949")
+    df = _read_csv_with_encoding(input_path)
     d_min = embed_metadata["min"]
     d_max = embed_metadata["max"]
     seed = embed_metadata["seed"]
@@ -473,7 +481,7 @@ class B2MarkEmbedder:
                 raise ValueError(
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
-            df = pd.read_csv(source_path)
+            df = _read_csv_with_encoding(suspect_path)
             detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
