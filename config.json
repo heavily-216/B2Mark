@@ -27,6 +27,7 @@
   "insurance": {
     "description": "보험 데이터",
     "target_col_candidates": [
+      "총_월납_보험료",
       "premium",
       "amount",
       "insurance_premium",
@@ -35,14 +36,16 @@
       "프리미엄"
     ],
     "ref_cols_candidates": [
+      ["연령", "직업"],
+      ["성별", "지역"],
       ["age", "policy_type"],
       ["나이", "정책유형"],
       ["customer_age", "plan_type"],
       ["year_old", "product_type"],
       ["age_group", "insurance_type"]
     ],
-    "k": 24,
-    "g": 3,
+    "k": 16,
+    "g": 2,
     "embed_seed": 20000,
     "selection_strategy": "hash_mod",
     "selection_params": {
