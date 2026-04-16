@@ -75,35 +75,3 @@
     }
   }
 }
-  },
-  "insurance": {
-    "description": "\ubcf4\ud5d8 \ub370\uc774\ud130",
-    "target_col": "premium",
-    "ref_cols": [
-      "age",
-      "policy_type"
-    ],
-    "k": 24,
-    "g": 3,
-    "embed_seed": 20000,
-    "selection_strategy": "hash_mod",
-    "selection_params": {
-      "g_value": 3
-    }
-  },
-  "credit_card": {
-    "description": "\uce74\ub4dc \ub370\uc774\ud130",
-    "target_col": "transaction_amount",
-    "ref_cols": [
-      "card_id",
-      "merchant_category"
-    ],
-    "k": 20,
-    "g": 4,
-    "embed_seed": 30000,
-    "selection_strategy": "hash_mod",
-    "selection_params": {
-      "g_value": 4
-    }
-  }
-}
