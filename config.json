@@ -18,7 +18,7 @@
     ],
     "k": 32,
     "g": 2,
-    "embed_seed": 1,
+    "embed_seed": 10000,
     "selection_strategy": "hash_mod",
     "selection_params": {
       "g_value": 2

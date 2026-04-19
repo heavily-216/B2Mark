@@ -207,32 +207,56 @@ def insert(
             continue  # hash_mod의 결과가 0이 아닌 데이터는 스킵
         target_bit = buyer_bitstring[bit_idx]
 
-        # 데이터가 표현하는 구매자 ID의 비트가 0인 경우에는 값을 수정하지 않음
-        if target_bit != "1":
-            continue
-
         embed_count[bit_idx] += 1
 
-        # 비트가 1인 경우 해당 데이터가 green zone의 범위에 포함되는지 확인
+        # 해당 데이터가 green zone의 범위에 포함되는지 확인
         original_val = float(df.loc[idx, target_col])
         in_green = any(low <= original_val < high for low, high in green_domains)
 
-        # 만약 데이터가 red zone에 존재한다면 해당 값을 가장 가까운 green zone으로 이동
-        if not in_green:
-            # 1. 각 그린존과 현재 내 값(original_val) 사이의 거리를 계산
-            def get_distance(domain: tuple[float, float]) -> float:
-                low, high = domain
-                if original_val < low:
-                    return low - original_val
-                if original_val > high:
-                    return original_val - high
-                return 0.0
+        if target_bit == "1":
+            # 비트가 1인 경우: 데이터를 GREEN zone으로 이동 (이미 있으면 유지)
+            if not in_green:
+                # 1. 각 그린존과 현재 내 값(original_val) 사이의 거리를 계산
+                def get_distance(domain: tuple[float, float]) -> float:
+                    low, high = domain
+                    if original_val < low:
+                        return low - original_val
+                    if original_val > high:
+                        return original_val - high
+                    return 0.0
 
-            # 2. 거리가 가장 짧은(min) 그린존을 타겟으로 선택
-            target_zone = min(green_domains, key=get_distance)
-            # 3. 선택된 그린존 안에서 무작위 값을 생성하여 덮어씀 (루프 전체 끝난 뒤 한 번만 저장)
-            new_val = float(np.random.uniform(target_zone[0], target_zone[1]))
-            df.loc[idx, target_col] = new_val
+                # 2. 거리가 가장 짧은(min) 그린존을 타겟으로 선택
+                target_zone = min(green_domains, key=get_distance)
+                # 3. 선택된 그린존 안에서 무작위 값을 생성하여 덮어씀
+                new_val = float(np.random.uniform(target_zone[0], target_zone[1]))
+                df.loc[idx, target_col] = new_val
+        else:
+            # 비트가 0인 경우: 데이터를 RED zone으로 이동 (이미 있으면 유지)
+            if in_green:
+                # 1. RED zone으로 이동할 새로운 값 찾기
+                # green_domains 바깥의 값을 찾아야 함
+                def get_red_distance(domain: tuple[float, float]) -> float:
+                    low, high = domain
+                    if original_val < low:
+                        return low - original_val
+                    if original_val > high:
+                        return original_val - high
+                    return 0.0
+
+                # 2. 가장 가까운 GREEN zone을 찾고, 그것의 경계 바깥으로 이동
+                nearest_zone = min(green_domains, key=get_red_distance)
+                low, high = nearest_zone
+
+                # 현재 값의 위치에 따라 GREEN zone 경계 바깥으로 이동
+                if original_val < low:
+                    # 현재가 GREEN zone보다 아래에 있으면 그대로 유지하면 되는데,
+                    # 이미 GREEN zone에 있다고 판정된 경우는 실제로는 경계에 있을 수 있음
+                    new_val = low - 1.0 if low > d_min else d_min
+                else:
+                    # 현재가 GREEN zone보다 위에 있으면
+                    new_val = high + 1.0 if high < d_max else d_max
+
+                df.loc[idx, target_col] = new_val
 
     if verbose:
         print(f"[Embed] Buyer bitstring: {buyer_bitstring}")
@@ -770,6 +794,7 @@ class B2MarkDetector:
         ref_cols=None,
         verbose=False,
         data_type=None,
+        prefer_config=False,
     ):
         """
         워터마크 검출 메서드
@@ -782,6 +807,7 @@ class B2MarkDetector:
             ref_cols: 참조 열 리스트 (None이면 auto_detect 사용)
             verbose: 상세 출력 여부
             data_type: 데이터 타입 (자동 탐지 시 필요)
+            prefer_config: True면 config.json 우선 사용 (기본값: False = 자동 탐지 우선)
         """
         # 열 이름을 자동으로 탐지하는 경우
         if target_col is None or ref_cols is None:
@@ -791,7 +817,7 @@ class B2MarkDetector:
                 )
             df = _read_csv_with_encoding(suspect_path)
             detected_target_col, detected_ref_cols = auto_detect_columns(
-                df, data_type, verbose=verbose
+                df, data_type, verbose=verbose, prefer_config=prefer_config
             )
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
