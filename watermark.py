@@ -605,19 +605,30 @@ def auto_detect_columns_fallback(
 
 
 def auto_detect_columns(
-    df: pd.DataFrame, data_type: str = "real_estate", verbose: bool = False
+    df: pd.DataFrame,
+    data_type: str = "real_estate",
+    verbose: bool = False,
+    prefer_config: bool = False,
 ) -> tuple[str, list[str]]:
     """
     CSV 파일의 실제 열 이름을 자동으로 탐지하여 target_col과 ref_cols을 찾음
 
+    ⭐ 마켓플레이스 데이터셋 처리 시스템:
+    새로운 데이터셋을 받으면 자동으로 워터마킹에 적합한 열을 탐지합니다.
+    config.json은 성능 최적화용으로만 사용됩니다 (선택사항).
+
     우선순위:
-    1. config.json에서 data_type별 설정값 사용
-    2. 설정값이 없으면 자동 탐지 (Fallback)
+    1️⃣ 자동 탐지 (Fallback) - 모든 데이터셋에 적용 가능
+       └─ numeric 열 + categorical 열 자동 분석
+    2️⃣ config.json 설정 - 자동 탐지보다 나은 결과 원할 때 사용 (선택)
+       └─ prefer_config=True 설정 시 우선 사용
 
     Args:
         df: Pandas DataFrame
-        data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+        data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card', 기타)
         verbose: 탐지 과정 출력 여부
+        prefer_config: True면 config.json을 먼저 시도 (기본값: False)
+                      False면 자동 탐지 우선
 
     Returns:
         (target_col, ref_cols) 튜플
@@ -627,11 +638,21 @@ def auto_detect_columns(
     """
     df_columns = set(df.columns)
 
+    # prefer_config=False (기본값): 자동 탐지 우선
+    if not prefer_config:
+        if verbose:
+            print("🔍 자동 탐지 모드 (마켓플레이스 최적화)")
+        return auto_detect_columns_fallback(df, verbose=verbose)
+
+    # prefer_config=True: config.json 우선 시도
+    if verbose:
+        print("⚙️ config.json 우선 모드 (최적화된 설정)")
+
     try:
         config = load_config_by_datatype(data_type)
     except (FileNotFoundError, ValueError):
         if verbose:
-            print(f"⚠ config.json 설정을 찾을 수 없습니다. Fallback 모드 사용...")
+            print(f"⚠ config.json 설정 없음. 자동 탐지로 전환...")
         return auto_detect_columns_fallback(df, verbose=verbose)
 
     # target_col 찾기
@@ -658,9 +679,9 @@ def auto_detect_columns(
             print(f"  - Reference: {list(ref_cols)}")
         return target_col, list(ref_cols)
 
-    # config.json 설정이 부족하면 Fallback 사용
+    # config.json 설정이 부족하면 자동 탐지로 Fallback
     if verbose:
-        print(f"⚠ config.json 설정이 일치하지 않음. Fallback 자동 탐지...")
+        print(f"⚠ config.json 설정이 일치하지 않음. 자동 탐지로 전환...")
         if target_col_candidates:
             print(f"  예상 target 열: {', '.join(target_col_candidates)}")
             print(f"  실제 CSV 열: {', '.join(df.columns)}")
