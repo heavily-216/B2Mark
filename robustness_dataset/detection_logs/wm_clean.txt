@@ -1,7 +1,0 @@
-
---- [Detection Report] ---
-Bit 0: Green=205/205, Z-Score=14.32
-Bit 1: Green=96/191, Z-Score=0.07
-Bit 2: Green=191/191, Z-Score=13.82
-Bit 3: Green=205/205, Z-Score=14.32
-Bit 4: Green=102/207, Z-Score=-0.21
