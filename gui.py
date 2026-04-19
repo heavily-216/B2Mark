@@ -33,16 +33,13 @@ class B2MarkGUI:
         # 각 탭 생성
         self.embed_frame = ttk.Frame(self.notebook)
         self.detect_frame = ttk.Frame(self.notebook)
-        self.dov_frame = ttk.Frame(self.notebook)
 
         self.notebook.add(self.embed_frame, text="🔐 워터마크 삽입 (Embed)")
         self.notebook.add(self.detect_frame, text="🔍 워터마크 검출 (Detect)")
-        self.notebook.add(self.dov_frame, text="✅ 소유권 검증 (DOV)")
 
         # 각 탭 UI 구성
         self.create_embed_tab()
         self.create_detect_tab()
-        self.create_dov_tab()
 
         # 로그 창
         self.create_log_area()
@@ -314,176 +311,6 @@ class B2MarkGUI:
         except Exception as e:
             self.log(f"[!] 오류: {str(e)}")
             messagebox.showerror("오류", f"워터마크 검출 중 오류 발생:\n{str(e)}")
-
-    # ==================== DOV Tab ====================
-    def create_dov_tab(self):
-        frame = ttk.Frame(self.dov_frame, padding="10")
-        frame.pack(fill="both", expand=True)
-
-        # 제목
-        ttk.Label(
-            frame, text="데이터 소유권 검증 (DOV)", font=("Arial", 14, "bold")
-        ).pack(anchor="w", pady=(0, 10))
-
-        # 입력 파일
-        ttk.Label(frame, text="검사 대상 CSV 파일:").pack(anchor="w", pady=(5, 0))
-        self.dov_input_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.dov_input_var, width=50).pack(
-            anchor="w", pady=(0, 5)
-        )
-        ttk.Button(
-            frame,
-            text="파일 선택",
-            command=lambda: self.select_file(self.dov_input_var),
-        ).pack(anchor="w", pady=(0, 10))
-
-        # 메타데이터 파일
-        ttk.Label(frame, text="메타데이터 JSON 파일:").pack(anchor="w", pady=(5, 0))
-        self.dov_meta_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.dov_meta_var, width=50).pack(
-            anchor="w", pady=(0, 5)
-        )
-        ttk.Button(
-            frame, text="파일 선택", command=lambda: self.select_file(self.dov_meta_var)
-        ).pack(anchor="w", pady=(0, 10))
-
-        # 주장하는 구매자 ID
-        ttk.Label(frame, text="주장하는 구매자 ID (비트스트링):").pack(
-            anchor="w", pady=(5, 0)
-        )
-        self.dov_claimed_id_var = tk.StringVar(value="10110")
-        ttk.Entry(frame, textvariable=self.dov_claimed_id_var, width=50).pack(
-            anchor="w", pady=(0, 10)
-        )
-
-        # 구매자 ID 길이
-        ttk.Label(frame, text="구매자 ID 길이 (비트 수):").pack(anchor="w", pady=(5, 0))
-        self.dov_bitlen_var = tk.StringVar(value="5")
-        ttk.Entry(frame, textvariable=self.dov_bitlen_var, width=50).pack(
-            anchor="w", pady=(0, 10)
-        )
-
-        # 데이터 타입
-        ttk.Label(frame, text="데이터 타입:").pack(anchor="w", pady=(5, 0))
-        self.dov_datatype_var = tk.StringVar(value="real_estate")
-        datatype_combo = ttk.Combobox(
-            frame,
-            textvariable=self.dov_datatype_var,
-            values=["real_estate", "insurance", "credit_card"],
-            state="readonly",
-            width=47,
-        )
-        datatype_combo.pack(anchor="w", pady=(0, 10))
-
-        # 최소 일치율
-        ttk.Label(frame, text="최소 일치율 (0.0~1.0):").pack(anchor="w", pady=(5, 0))
-        self.dov_min_match_var = tk.StringVar(value="0.8")
-        ttk.Entry(frame, textvariable=self.dov_min_match_var, width=50).pack(
-            anchor="w", pady=(0, 10)
-        )
-
-        # 실행 버튼
-        ttk.Button(frame, text="소유권 검증 실행", command=self.run_dov).pack(
-            anchor="w", pady=(10, 0)
-        )
-
-    def run_dov(self):
-        """소유권 검증 실행"""
-        input_file = self.dov_input_var.get()
-        meta_file = self.dov_meta_var.get()
-        claimed_id = self.dov_claimed_id_var.get()
-        bit_len = self.dov_bitlen_var.get()
-        data_type = self.dov_datatype_var.get()
-        min_match = self.dov_min_match_var.get()
-
-        if not input_file or not meta_file or not claimed_id or not bit_len:
-            messagebox.showerror("오류", "모든 필드를 입력해주세요")
-            return
-
-        if not os.path.exists(input_file):
-            messagebox.showerror("오류", f"파일을 찾을 수 없습니다: {input_file}")
-            return
-
-        if not os.path.exists(meta_file):
-            messagebox.showerror(
-                "오류", f"메타데이터 파일을 찾을 수 없습니다: {meta_file}"
-            )
-            return
-
-        try:
-            bit_len = int(bit_len)
-            min_match = float(min_match)
-        except ValueError:
-            messagebox.showerror("오류", "비트 수와 일치율은 숫자여야 합니다")
-            return
-
-        # 스레드에서 실행
-        thread = threading.Thread(
-            target=self._dov_worker,
-            args=(input_file, meta_file, claimed_id, bit_len, data_type, min_match),
-        )
-        thread.daemon = True
-        thread.start()
-
-    def _dov_worker(
-        self, input_file, meta_file, claimed_id, bit_len, data_type, min_match
-    ):
-        try:
-            self.log(f"[*] 소유권 검증 시작... (데이터타입: {data_type})")
-
-            # config 로드
-            config = load_config_by_datatype(data_type)
-
-            self.log(f"    열 이름 자동 탐지 중...")
-
-            # 메타데이터 로드
-            with open(meta_file, "r") as f:
-                meta_data = json.load(f)
-
-            # DOV 검증 실행 (자동 열 탐지)
-            detector = B2MarkDetector(secret_key=SECRET_KEY)
-            result = detector.verify_ownership(
-                suspect_path=input_file,
-                meta_data=meta_data,
-                claimed_buyer_id=claimed_id,
-                bit_length=bit_len,
-                target_col=None,  # 자동 탐지
-                ref_cols=None,  # 자동 탐지
-                z_threshold=1.645,
-                min_match_ratio=min_match,
-                data_type=data_type,  # 자동 탐지에 필요
-            )
-
-            # 결과 출력
-            self.log(f"[+] 검증 완료!")
-            self.log(f"    주장된 ID: {result['claimed_buyer_id']}")
-            self.log(f"    검출된 ID: {result['detected_id']}")
-            self.log(
-                f"    일치한 비트: {result['matched_bits']}/{result['known_bits']}"
-            )
-            self.log(f"    일치율: {result['match_ratio']:.2%}")
-
-            decision = (
-                "✅ VERIFIED" if result["ownership_verified"] else "❌ NOT VERIFIED"
-            )
-            self.log(f"    결정: {decision} (임계값: {result['min_match_ratio']:.0%})")
-
-            status = (
-                "소유권이 검증되었습니다!"
-                if result["ownership_verified"]
-                else "소유권이 검증되지 않았습니다"
-            )
-            messagebox.showinfo(
-                "검증 결과",
-                f"{status}\n\n"
-                f"주장된 ID: {result['claimed_buyer_id']}\n"
-                f"검출된 ID: {result['detected_id']}\n"
-                f"일치율: {result['match_ratio']:.2%}",
-            )
-
-        except Exception as e:
-            self.log(f"[!] 오류: {str(e)}")
-            messagebox.showerror("오류", f"소유권 검증 중 오류 발생:\n{str(e)}")
 
     # ==================== Log Area ====================
     def create_log_area(self):

@@ -80,46 +80,6 @@ def run_detect(args):
     print(f"\n[!!!] 구매자 ID: [{detected_id}]")
 
 
-def run_dov(args):
-    """Data Ownership Verification 모드 실행"""
-    # config에서 설정 로드
-    config = load_config_by_datatype(args.data_type)
-
-    print(
-        f"[*] DOV(소유권 검증)를 수행합니다... 대상 파일: {args.input}, 데이터타입: {args.data_type}"
-    )
-
-    if not os.path.exists(args.meta):
-        print(f"[-] 메타데이터 파일을 찾을 수 없습니다 ({args.meta})")
-        return
-
-    with open(args.meta, "r") as f:
-        meta_data = json.load(f)
-
-    detector = B2MarkDetector(secret_key=SECRET_KEY)
-    result = detector.verify_ownership(
-        suspect_path=args.input,
-        meta_data=meta_data,
-        claimed_buyer_id=args.claimed_id,
-        bit_length=args.bit_len,
-        target_col=None,  # 자동 탐지 사용
-        ref_cols=None,  # 자동 탐지 사용
-        z_threshold=args.z_threshold,
-        min_match_ratio=args.min_match_ratio,
-        data_type=args.data_type,  # 자동 탐지에 필요
-    )
-
-    print("\n--- [DOV Report] ---")
-    print(f"Claimed ID : {result['claimed_buyer_id']}")
-    print(f"Detected ID: {result['detected_id']}")
-    print(f"Matched    : {result['matched_bits']}/{result['known_bits']}")
-    print(f"Match Ratio: {result['match_ratio']:.2%}")
-    print(
-        f"Decision   : {'OWNERSHIP VERIFIED' if result['ownership_verified'] else 'NOT VERIFIED'} "
-        f"(threshold={result['min_match_ratio']:.0%})"
-    )
-
-
 if __name__ == "__main__":
     # 명령어 파서 설정 (CLI)
     parser = argparse.ArgumentParser(description="B2Mark Watermarking Tool")
@@ -165,43 +125,11 @@ if __name__ == "__main__":
         help="Print detailed bit-by-bit detection results",
     )
 
-    # 3. DOV 명령어 설정
-    # 사용법: python main.py dov --input leaked.csv --meta sold.csv.meta.json --claimed_id 10110 --bit_len 5 --data_type real_estate
-    dov_parser = subparsers.add_parser("dov", help="Verify data ownership")
-    dov_parser.add_argument("--input", required=True, help="Suspect CSV file path")
-    dov_parser.add_argument("--meta", required=True, help="Meta-data JSON file path")
-    dov_parser.add_argument(
-        "--claimed_id", required=True, help="Claimed Buyer ID bitstring"
-    )
-    dov_parser.add_argument(
-        "--bit_len", type=int, required=True, help="Length of Buyer ID"
-    )
-    dov_parser.add_argument(
-        "--data_type",
-        default="real_estate",
-        choices=["real_estate", "insurance", "credit_card"],
-        help="Data type: real_estate, insurance, credit_card",
-    )
-    dov_parser.add_argument(
-        "--z_threshold",
-        type=float,
-        default=1.645,
-        help="Z-score threshold for decoding bit=1 (default: 1.645)",
-    )
-    dov_parser.add_argument(
-        "--min_match_ratio",
-        type=float,
-        default=0.8,
-        help="Minimum match ratio for ownership verification (default: 0.8)",
-    )
-
     args = parser.parse_args()
 
     if args.mode == "embed":
         run_embed(args)
     elif args.mode == "detect":
         run_detect(args)
-    elif args.mode == "dov":
-        run_dov(args)
     else:
         parser.print_help()
