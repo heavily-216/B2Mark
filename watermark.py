@@ -269,7 +269,17 @@ def insert(
         df[target_col] = df[target_col].round().astype(original_target_dtype)
 
     df.to_csv(output_path, index=False)
-    return EmbedResult(metadata={"min": d_min, "max": d_max, "seed": seed})
+    return EmbedResult(
+        metadata={
+            "min": d_min,
+            "max": d_max,
+            "seed": seed,
+            "target_col": target_col,
+            "ref_cols": list(ref_cols),
+            "k": options.k,
+            "g": options.g,
+        }
+    )
 
 
 # =================================================================================
@@ -310,8 +320,13 @@ def detect(
     d_min = embed_metadata["min"]
     d_max = embed_metadata["max"]
     seed = embed_metadata["seed"]
+
+    # 메타데이터에서 k, g 값 추출 (없으면 options에서 사용)
+    k = embed_metadata.get("k", options.k)
+    g = embed_metadata.get("g", options.g)
+
     # green-red zone 범위 계산
-    green_domains = generate_green_domains(d_min, d_max, options.k, seed)
+    green_domains = generate_green_domains(d_min, d_max, k, seed)
 
     # 각 데이터가 1.워터마킹 대상이었는지, 2.대상이었다면 구매자 ID의 몇번째 비트를 담당했는지 추적
     bit_stats = {i: {"green": 0, "total": 0} for i in range(bit_length)}
@@ -319,7 +334,7 @@ def detect(
     for idx in df.index:
         comp_key = _composite_key(df.loc[idx], ref_cols)
         bit_idx = _bit_index(options.secret_key, comp_key, bit_length)
-        if not _is_selected(options.secret_key, comp_key, options.g):
+        if not _is_selected(options.secret_key, comp_key, g):
             continue
         val = float(df.loc[idx, target_col])
         # 워터마킹 대상이 맞다면 total값 1 증가

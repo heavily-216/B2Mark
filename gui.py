@@ -284,22 +284,31 @@ class B2MarkGUI:
             # config 로드
             config = load_config_by_datatype(data_type)
 
-            self.log(f"    열 이름 자동 탐지 중...")
-
             # 메타데이터 로드
             with open(meta_file, "r") as f:
                 meta_data = json.load(f)
 
-            # 검출 실행 (자동 열 탐지)
+            # 메타데이터에서 target_col과 ref_cols 추출
+            target_col = meta_data.get("target_col")
+            ref_cols = meta_data.get("ref_cols")
+
+            if target_col and ref_cols:
+                self.log(
+                    f"    메타데이터에서 열 정보 로드: target_col='{target_col}', ref_cols={ref_cols}"
+                )
+            else:
+                self.log(f"    열 이름 자동 탐지 중...")
+
+            # 검출 실행 (메타데이터의 target_col/ref_cols 사용)
             detector = B2MarkDetector(secret_key=SECRET_KEY)
             detected_id = detector.detect(
                 suspect_path=input_file,
                 meta_data=meta_data,
                 bit_length=bit_len,
-                target_col=None,  # 자동 탐지
-                ref_cols=None,  # 자동 탐지
+                target_col=target_col,  # 메타데이터에서 로드
+                ref_cols=ref_cols,  # 메타데이터에서 로드
                 verbose=verbose,
-                data_type=data_type,  # 자동 탐지에 필요
+                data_type=data_type,
             )
 
             self.log(f"[+] 검출 완료!")

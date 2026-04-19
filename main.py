@@ -66,15 +66,19 @@ def run_detect(args):
 
     detector = B2MarkDetector(secret_key=SECRET_KEY)
 
-    # 검출 수행 - 자동 열 탐지 사용
+    # 메타데이터에서 target_col과 ref_cols 추출
+    target_col = meta_data.get("target_col")
+    ref_cols = meta_data.get("ref_cols")
+
+    # 검출 수행 - 메타데이터의 target_col/ref_cols 사용
     detected_id = detector.detect(
         suspect_path=args.input,
         meta_data=meta_data,
         bit_length=args.bit_len,
-        target_col=None,  # 자동 탐지 사용
-        ref_cols=None,  # 자동 탐지 사용
+        target_col=target_col,  # 메타데이터에서 로드
+        ref_cols=ref_cols,  # 메타데이터에서 로드
         verbose=args.verbose if hasattr(args, "verbose") else False,
-        data_type=args.data_type,  # 자동 탐지에 필요
+        data_type=args.data_type,
     )
 
     print(f"\n[!!!] 구매자 ID: [{detected_id}]")
