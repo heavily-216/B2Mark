@@ -396,15 +396,165 @@ def load_config_by_datatype(data_type: str = "real_estate") -> dict:
         raise FileNotFoundError("config.json 파일을 찾을 수 없습니다.")
 
 
-def auto_detect_columns(
-    df: pd.DataFrame, data_type: str = "real_estate"
-) -> tuple[str, list[str]]:
+def get_numeric_columns(df: pd.DataFrame, verbose: bool = False) -> list[str]:
     """
-    CSV 파일의 실제 열 이름을 자동으로 탐지하여 target_col과 ref_cols을 찾음
+    DataFrame에서 실수형/정수형(numeric) 열들을 자동으로 탐지
+
+    제외 대상:
+    - 'id', 'number', 'count' 등의 ID/인덱스 성 열
+    - 'date', 'time', 'year' 등의 시간 관련 열
+    - 값의 범위가 극단적으로 작은 열 (min-max < 1)
 
     Args:
         df: Pandas DataFrame
-        data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+        verbose: 탐지 과정 출력 여부
+
+    Returns:
+        numeric 열 리스트 (내림차순으로 정렬: 값의 범위가 큰 순서)
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # ID/인덱스 성 열 제외
+    exclude_keywords = [
+        "id",
+        "index",
+        "idx",
+        "number",
+        "no",
+        "seq",
+        "count",
+        "cnt",
+        "code",
+        "code_",
+        "_id",
+        "_idx",
+        "identifier",
+        "key",
+        "pk",
+    ]
+
+    # 시간 관련 열 제외
+    time_keywords = [
+        "date",
+        "time",
+        "datetime",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "timestamp",
+        "epoch",
+        "created_at",
+        "updated_at",
+        "date_time",
+    ]
+
+    filtered_cols = []
+    for col in numeric_cols:
+        col_lower = col.lower()
+
+        # 제외 키워드 확인
+        if any(kw in col_lower for kw in exclude_keywords):
+            if verbose:
+                print(f"  ⊘ '{col}' 제외 (ID/인덱스 성 열로 판단)")
+            continue
+
+        if any(kw in col_lower for kw in time_keywords):
+            if verbose:
+                print(f"  ⊘ '{col}' 제외 (시간 관련 열로 판단)")
+            continue
+
+        # 값의 범위 확인 (min-max < 1은 제외)
+        col_values = pd.to_numeric(df[col], errors="coerce").dropna()
+        if len(col_values) > 0:
+            value_range = col_values.max() - col_values.min()
+            if value_range < 1:
+                if verbose:
+                    print(
+                        f"  ⊘ '{col}' 제외 (값의 범위가 너무 작음: {value_range:.6f})"
+                    )
+                continue
+
+        filtered_cols.append(col)
+
+    # 값의 범위가 큰 순서로 정렬 (워터마킹에 더 적합)
+    def get_range(col):
+        col_values = pd.to_numeric(df[col], errors="coerce").dropna()
+        if len(col_values) == 0:
+            return 0
+        return col_values.max() - col_values.min()
+
+    filtered_cols.sort(key=get_range, reverse=True)
+
+    if verbose:
+        print(f"✓ 탐지된 numeric 열: {filtered_cols}")
+        for col in filtered_cols:
+            col_values = pd.to_numeric(df[col], errors="coerce").dropna()
+            print(f"  - '{col}': 범위 {col_values.min():.2f} ~ {col_values.max():.2f}")
+
+    return filtered_cols
+
+
+def get_categorical_columns(df: pd.DataFrame, verbose: bool = False) -> list[str]:
+    """
+    DataFrame에서 범주형/문자형 열들을 자동으로 탐지
+    고유값 개수가 너무 많은 열(>1000) 또는 너무 적은 열(<2)은 제외
+
+    Args:
+        df: Pandas DataFrame
+        verbose: 탐지 과정 출력 여부
+
+    Returns:
+        categorical 열 리스트 (고유값 개수 순서)
+    """
+    object_cols = df.select_dtypes(
+        include=["object", "category", "string"]
+    ).columns.tolist()
+
+    filtered_cols = []
+    for col in object_cols:
+        unique_count = df[col].nunique()
+
+        # 고유값이 너무 많으면 제외 (예: 주소, 설명 등)
+        if unique_count > 1000:
+            if verbose:
+                print(f"  ⊘ '{col}' 제외 (고유값이 너무 많음: {unique_count})")
+            continue
+
+        # 고유값이 너무 적으면 제외 (1개는 참조값으로 부적절)
+        if unique_count < 2:
+            if verbose:
+                print(f"  ⊘ '{col}' 제외 (고유값이 너무 적음: {unique_count})")
+            continue
+
+        filtered_cols.append(col)
+
+    # 고유값 개수 순서로 정렬
+    filtered_cols.sort(key=lambda col: df[col].nunique())
+
+    if verbose:
+        print(f"✓ 탐지된 categorical 열: {filtered_cols}")
+        for col in filtered_cols:
+            print(f"  - '{col}': {df[col].nunique()} 고유값")
+
+    return filtered_cols
+
+
+def auto_detect_columns_fallback(
+    df: pd.DataFrame, verbose: bool = False
+) -> tuple[str, list[str]]:
+    """
+    config.json 설정 없이 자동으로 target_col과 ref_cols를 탐지
+
+    전략:
+    1. Numeric 열 중 가장 범위가 큰 열을 target_col로 선택
+    2. Categorical 열 중 고유값이 가장 적은 2~3개를 ref_cols로 선택
+
+    Args:
+        df: Pandas DataFrame
+        verbose: 탐지 과정 출력 여부
 
     Returns:
         (target_col, ref_cols) 튜플
@@ -412,8 +562,77 @@ def auto_detect_columns(
     Raises:
         ValueError: 필요한 열을 찾을 수 없는 경우
     """
-    config = load_config_by_datatype(data_type)
+    if verbose:
+        print("\n🔍 Fallback 자동 열 탐지 시작...")
+
+    # Numeric 열 탐지
+    numeric_cols = get_numeric_columns(df, verbose=verbose)
+    if not numeric_cols:
+        raise ValueError(
+            "워터마킹에 적합한 numeric 열을 찾을 수 없습니다.\n"
+            f"현재 CSV의 열: {', '.join(df.columns)}"
+        )
+
+    target_col = numeric_cols[0]  # 가장 범위가 큰 numeric 열
+    if verbose:
+        print(f"✓ Target 열 선택: '{target_col}'")
+
+    # Categorical 열 탐지
+    cat_cols = get_categorical_columns(df, verbose=verbose)
+
+    # ref_cols 선택 전략
+    if len(cat_cols) >= 2:
+        ref_cols = tuple(cat_cols[:2])  # 가장 고유값이 적은 2개
+    elif len(cat_cols) == 1:
+        ref_cols = tuple([cat_cols[0]])
+    else:
+        # Categorical 열이 없으면, numeric 열 중 2번째, 3번째 선택
+        if len(numeric_cols) >= 2:
+            ref_cols = (
+                tuple(numeric_cols[1:3])
+                if len(numeric_cols) >= 3
+                else (numeric_cols[1],)
+            )
+        else:
+            raise ValueError(
+                "참조 열(ref_cols)을 찾을 수 없습니다. 최소 2개 이상의 열이 필요합니다."
+            )
+
+    if verbose:
+        print(f"✓ Reference 열 선택: {ref_cols}")
+
+    return target_col, list(ref_cols)
+
+
+def auto_detect_columns(
+    df: pd.DataFrame, data_type: str = "real_estate", verbose: bool = False
+) -> tuple[str, list[str]]:
+    """
+    CSV 파일의 실제 열 이름을 자동으로 탐지하여 target_col과 ref_cols을 찾음
+
+    우선순위:
+    1. config.json에서 data_type별 설정값 사용
+    2. 설정값이 없으면 자동 탐지 (Fallback)
+
+    Args:
+        df: Pandas DataFrame
+        data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+        verbose: 탐지 과정 출력 여부
+
+    Returns:
+        (target_col, ref_cols) 튜플
+
+    Raises:
+        ValueError: 필요한 열을 찾을 수 없는 경우
+    """
     df_columns = set(df.columns)
+
+    try:
+        config = load_config_by_datatype(data_type)
+    except (FileNotFoundError, ValueError):
+        if verbose:
+            print(f"⚠ config.json 설정을 찾을 수 없습니다. Fallback 모드 사용...")
+        return auto_detect_columns_fallback(df, verbose=verbose)
 
     # target_col 찾기
     target_col_candidates = config.get("target_col_candidates", [])
@@ -423,13 +642,6 @@ def auto_detect_columns(
             target_col = candidate
             break
 
-    if target_col is None:
-        raise ValueError(
-            f"타겟 열을 찾을 수 없습니다.\n"
-            f"예상 가능한 열 이름: {', '.join(target_col_candidates)}\n"
-            f"현재 CSV의 열: {', '.join(df.columns)}"
-        )
-
     # ref_cols 찾기
     ref_cols_candidates = config.get("ref_cols_candidates", [])
     ref_cols = None
@@ -438,14 +650,22 @@ def auto_detect_columns(
             ref_cols = candidate_set
             break
 
-    if ref_cols is None:
-        raise ValueError(
-            f"참조 열들을 찾을 수 없습니다.\n"
-            f"예상 가능한 열 조합들: {ref_cols_candidates}\n"
-            f"현재 CSV의 열: {', '.join(df.columns)}"
-        )
+    # config.json 설정을 찾았으면 반환
+    if target_col is not None and ref_cols is not None:
+        if verbose:
+            print(f"✓ config.json에서 열 정보 발견")
+            print(f"  - Target: '{target_col}'")
+            print(f"  - Reference: {list(ref_cols)}")
+        return target_col, list(ref_cols)
 
-    return target_col, ref_cols
+    # config.json 설정이 부족하면 Fallback 사용
+    if verbose:
+        print(f"⚠ config.json 설정이 일치하지 않음. Fallback 자동 탐지...")
+        if target_col_candidates:
+            print(f"  예상 target 열: {', '.join(target_col_candidates)}")
+            print(f"  실제 CSV 열: {', '.join(df.columns)}")
+
+    return auto_detect_columns_fallback(df, verbose=verbose)
 
 
 # =================================================================================
@@ -493,7 +713,9 @@ class B2MarkEmbedder:
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
             df = _read_csv_with_encoding(source_path)
-            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            detected_target_col, detected_ref_cols = auto_detect_columns(
+                df, data_type, verbose=verbose
+            )
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
 
@@ -545,7 +767,9 @@ class B2MarkDetector:
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
             df = _read_csv_with_encoding(suspect_path)
-            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            detected_target_col, detected_ref_cols = auto_detect_columns(
+                df, data_type, verbose=verbose
+            )
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
 
@@ -593,7 +817,9 @@ class B2MarkDetector:
                     "target_col과 ref_cols가 지정되지 않았으면, data_type을 반드시 지정해야 합니다."
                 )
             df = _read_csv_with_encoding(suspect_path)
-            detected_target_col, detected_ref_cols = auto_detect_columns(df, data_type)
+            detected_target_col, detected_ref_cols = auto_detect_columns(
+                df, data_type, verbose=False
+            )
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
 
