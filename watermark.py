@@ -712,6 +712,7 @@ class B2MarkEmbedder:
         embed_seed=10000,
         verbose=False,
         data_type=None,
+        prefer_config=False,
     ):
         """
         워터마크 삽입 메서드
@@ -725,6 +726,7 @@ class B2MarkEmbedder:
             k, g, embed_seed: 워터마킹 파라미터
             verbose: 상세 출력 여부
             data_type: 데이터 타입 ('real_estate', 'insurance', 'credit_card')
+            prefer_config: True면 config.json 우선 사용 (기본값: False = 자동 탐지 우선)
                       target_col/ref_cols가 None일 때 자동 탐지에 사용
         """
         # 열 이름을 자동으로 탐지하는 경우
@@ -735,7 +737,7 @@ class B2MarkEmbedder:
                 )
             df = _read_csv_with_encoding(source_path)
             detected_target_col, detected_ref_cols = auto_detect_columns(
-                df, data_type, verbose=verbose
+                df, data_type, verbose=verbose, prefer_config=prefer_config
             )
             target_col = target_col or detected_target_col
             ref_cols = ref_cols or detected_ref_cols
